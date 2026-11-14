@@ -2,11 +2,11 @@ Live Cloud Run Deployment: https://ais-dev-swclensx37jgkkqkwuncx6-367292566887.a
 
 # 1. Project Title & Problem Statement
 
-**NISAR Pulse: Cloud-Piercing L-Band GCOV & GUNW Radar Intelligence for Floods, Farms, and Faults**
+**Radar Rhythm: Cloud-Piercing Satellite Radar Maps for Floods, Farms, and Faults**
 
 > *"Earth's surface is an endless dance of natural processes and human activities, but these changes are often difficult to visualize, understand, and communicate. From wetland loss to forest wildfires, earthquakes, farming activities, glacier movement, and more, Earth is in a constant waltz of surface changes. Your challenge is to build an interactive application that uses radar remote sensing data from the NASA-ISRO Synthetic Aperture Radar (NISAR) mission to track and visualize one or more types of surface change at locations around the world."*
 
-Optical Earth observation satellites fail during dense monsoon cloud cover and night-time disasters. **NISAR Pulse** decodes L-band (24 cm wavelength) dual-polarimetric **GCOV** (Geocoded Polarimetric Covariance in $\gamma^0$ dB) and **GUNW** (Geocoded Unwrapped Interferogram in radians, cm LOS deformation, and coherence $\gamma$) products from the Alaska Satellite Facility (ASF DAAC) into an interactive split-screen decision console for disaster authorities, agronomists, and geotechnical teams.
+Optical Earth observation satellites fail during dense monsoon cloud cover and night-time disasters. **Radar Rhythm** decodes L-band (24 cm wavelength) dual-polarimetric **GCOV** (water and crop radar in $\gamma^0$ dB) and **GUNW** (ground movement radar in cm and coherence $\gamma$) products from the Alaska Satellite Facility (ASF DAAC) into an interactive 3D Earth + 2D Satellite & Radar comparison explorer.
 
 ---
 

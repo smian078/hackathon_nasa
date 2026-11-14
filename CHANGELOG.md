@@ -37,3 +37,17 @@
 ### Fixed
 - Refined procedural 3D Earth continent polygons in `src/components/EarthGlobeCanvas.tsx` to eliminate concave self-intersections and render clean South Asia/Japan coastlines.
 - Improved `390px` mobile header spacing in `src/components/Navbar.tsx`, preserved lowercase Greek `γ⁰`/`γ` symbols in telemetry HUD labels, map layer buttons, and the coherence mask slider label, and tuned `/api/gemini/assist` timeout to `5500ms`.
+
+## [0.2.1] - 2026-11-14 — Live SMIAN_P5 Cloudflare HDF5 Database Integration
+### Added
+- **Default Live Laptop HDF5 Tunnel (`src/services/nisarApi.ts`)**: Set default `nisar_laptop_db_url` to `https://americans-revolution-nicole-meanwhile.trycloudflare.com`, added a 4000ms timeout `/api/local-h5` fetcher parsing `status`, `host`, `totalH5FilesFound`, and `granules` (`fileSizeMB`, `hdf5MagicVerified`, `headerDigest`, `hdf5InternalPaths`, `parsedGranule`), with seamless offline fallback to bundled Cycle 035 data.
+- **Navbar Live Host Status Pill (`src/components/Navbar.tsx`)**: Added prominent green `LIVE DB: SMIAN_P5 (3 .H5 • 18.04 GB)` pill with editable tunnel URL popover and offline fallback state.
+## [0.3.0] - 2026-11-14 — Radar Rhythm Rebrand, 2D Satellite View, Refresh & Dark Theme
+### Added
+- **Top-Left Refresh Button (`src/components/RegionExplorerView.tsx`, `src/App.tsx`)**: Added a working Refresh button next to `3D Earth` that refreshes regional weather, satellite catalog, hazard alerts, and live `.h5` database status with loading feedback and an updated timestamp.
+- **Real 2D Satellite View & Mode Toggle (`src/components/CloudPiercerMap.tsx`)**: Replaced the hazy optical tile overlay with Esri World Imagery 2D satellite photography, added clickable `Satellite | Split | Radar` toggle buttons, fixed bidirectional Leaflet map sync on mount/pan/zoom, and upgraded the draggable divider with `setPointerCapture` across `0–100%`.
+- **Dark & Light Theme (`src/index.css`, `src/App.tsx`, `src/components/Navbar.tsx`)**: Added a true-black Dark theme default with a `Dark / Light` switcher persisted in `localStorage` and adapted Recharts axes/tooltips and Leaflet radar base tiles.
+
+### Changed
+- **Renamed App to `Radar Rhythm`**: Updated branding across `index.html`, `Navbar.tsx`, `Footer.tsx`, `AboutDataModal.tsx`, `PageAwareAssistant.tsx`, and docs.
+- **Simplified Plain-English Copy & Removed Language Switch**: Removed the `EN | MR | HI` language switcher from `Navbar.tsx`, `PhysicalDriverSynthesizer.tsx`, and `PageAwareAssistant.tsx`, and simplified headings and descriptions across Home and 2D Explorer views.

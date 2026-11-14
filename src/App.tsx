@@ -9,6 +9,7 @@ import {
   fetchAsfGranules,
   fetchEonetEvents,
   fetchNasaPowerSeries,
+  LAPTOP_DB_EVENT_NAME,
   loadSavedSnapshots,
   persistSavedSnapshot,
   removeSavedSnapshot,
@@ -18,7 +19,6 @@ import type {
   AsfGranulesApiResponse,
   DatasetAspectId,
   EonetEvent,
-  LanguageCode,
   LayerMode,
   NasaPowerApiResponse,
   PageViewMode,
@@ -32,13 +32,30 @@ import {
 } from './utils/globeMath.ts';
 import { computePassDelta, formatSigned } from './utils/sarPhysics.ts';
 
+const THEME_STORAGE_KEY = 'radar_rhythm_theme_v1';
+
 const AboutDataModal = lazy(() =>
   import('./components/AboutDataModal.tsx').then((m) => ({
     default: m.AboutDataModal,
   }))
 );
 
+export type ThemeMode = 'dark' | 'light';
+
+function readInitialTheme(): ThemeMode {
+  try {
+    const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (saved === 'light' || saved === 'dark') {
+      return saved;
+    }
+  } catch {
+    // Ignore storage read errors
+  }
+  return 'dark';
+}
+
 export default function App() {
+  const [theme, setTheme] = useState<ThemeMode>(readInitialTheme);
   const [pageView, setPageView] = useState<PageViewMode>('HOME_3D_GLOBE');
   const [isTransitioning, setIsTransitioning] = useState<boolean>(false);
   const [activeRegionId, setActiveRegionId] =
@@ -50,11 +67,12 @@ export default function App() {
   const [passIndex, setPassIndex] = useState<number>(2);
   const [selectedZoneId, setSelectedZoneId] = useState<string>('mh_gosikhurd');
   const [demoMode, setDemoMode] = useState<boolean>(true);
-  const [language, setLanguage] = useState<LanguageCode>('en');
-  const [splitPercent, setSplitPercent] = useState<number>(42);
+  const [splitPercent, setSplitPercent] = useState<number>(50);
   const [coherenceThreshold, setCoherenceThreshold] = useState<number>(0.35);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isAboutOpen, setIsAboutOpen] = useState<boolean>(false);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<string | null>(null);
 
   const [savedSnapshots, setSavedSnapshots] = useState<SavedSnapshot[]>(() =>
     loadSavedSnapshots()
@@ -77,6 +95,15 @@ export default function App() {
   const [isSynthesizing, setIsSynthesizing] = useState<boolean>(false);
   const [synthesisError, setSynthesisError] = useState<string | null>(null);
 
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {
+      // Ignore storage write errors
+    }
+  }, [theme]);
+
   const region = REGION_DATASETS[activeRegionId];
   const selectedZone =
     region.zones.find((z) => z.id === selectedZoneId) ?? region.zones[0] ?? null;
@@ -90,62 +117,85 @@ export default function App() {
     setPowerError(null);
     setGranulesError(null);
 
-    try {
-      const powerResp = await fetchNasaPowerSeries(currentRegion, demoMode);
-      setPowerData(powerResp);
-    } catch (err) {
-      setPowerError(
-        err instanceof Error
-          ? `${err.message}. Falling back to bundled POWER sample.`
-          : 'Could not reach NASA POWER API.'
-      );
-      setPowerData({
-        lat: currentRegion.center[0],
-        lon: currentRegion.center[1],
-        source: 'NASA_POWER_BUNDLED',
-        series: currentRegion.powerSeries,
-        cached: false,
+    const powerTask = fetchNasaPowerSeries(currentRegion, demoMode)
+      .then((powerResp) => {
+        setPowerData(powerResp);
+      })
+      .catch((err: unknown) => {
+        setPowerError(
+          err instanceof Error
+            ? `${err.message}. Showing built-in weather sample.`
+            : 'Could not reach NASA weather feed.'
+        );
+        setPowerData({
+          lat: currentRegion.center[0],
+          lon: currentRegion.center[1],
+          source: 'NASA_POWER_BUNDLED',
+          series: currentRegion.powerSeries,
+          cached: false,
+        });
+      })
+      .finally(() => {
+        setIsLoadingPower(false);
       });
-    } finally {
-      setIsLoadingPower(false);
-    }
 
-    try {
-      const asfResp = await fetchAsfGranules(
-        activeRegionId,
-        currentRegion.productType,
-        demoMode
-      );
-      setGranulesData(asfResp);
-    } catch (err) {
-      setGranulesError(
-        err instanceof Error
-          ? `${err.message}. Showing bundled ASF Vertex extract.`
-          : 'Could not reach ASF Vertex search proxy.'
-      );
-      setGranulesData({
-        region: activeRegionId,
-        product: currentRegion.productType,
-        source: 'ASF_VERTEX_BUNDLED_SAMPLE',
-        liveCount: 0,
-        granules: currentRegion.granules,
-        cached: false,
+    const granulesTask = fetchAsfGranules(
+      activeRegionId,
+      currentRegion.productType,
+      demoMode
+    )
+      .then((asfResp) => {
+        setGranulesData(asfResp);
+      })
+      .catch((err: unknown) => {
+        setGranulesError(
+          err instanceof Error
+            ? `${err.message}. Showing built-in satellite file list.`
+            : 'Could not reach satellite file catalog.'
+        );
+        setGranulesData({
+          region: activeRegionId,
+          product: currentRegion.productType,
+          source: 'ASF_VERTEX_BUNDLED_SAMPLE',
+          liveCount: 0,
+          granules: currentRegion.granules,
+          cached: false,
+        });
+      })
+      .finally(() => {
+        setIsLoadingGranules(false);
       });
-    } finally {
-      setIsLoadingGranules(false);
-    }
 
-    try {
-      const eonetResp = await fetchEonetEvents(currentRegion.bbox, demoMode);
-      setEonetEvents(eonetResp.events);
-    } catch {
-      setEonetEvents([]);
-    }
+    const eonetTask = fetchEonetEvents(currentRegion.bbox, demoMode)
+      .then((eonetResp) => {
+        setEonetEvents(eonetResp.events);
+      })
+      .catch(() => {
+        setEonetEvents([]);
+      });
+
+    await Promise.all([powerTask, granulesTask, eonetTask]);
+    setLastRefreshedAt(
+      new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    );
   }, [activeRegionId, demoMode]);
 
   useEffect(() => {
     void loadRegionalData();
   }, [loadRegionalData]);
+
+  const handleRefreshAll = useCallback(async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    window.dispatchEvent(new Event(LAPTOP_DB_EVENT_NAME));
+    try {
+      await loadRegionalData();
+    } finally {
+      window.setTimeout(() => {
+        setIsRefreshing(false);
+      }, 260);
+    }
+  }, [isRefreshing, loadRegionalData]);
 
   useEffect(() => {
     if (!isPlaying) return;
@@ -222,14 +272,14 @@ export default function App() {
         coherence: pass.coherence,
         rainfallMm: pass.rainfallMm,
         soilMoistureIndex: pass.soilMoistureIndex,
-        language,
+        language: 'en',
       });
       setSynthesis(result);
     } catch (err) {
       setSynthesisError(
         err instanceof Error
           ? err.message
-          : 'Failed to synthesize physical drivers.'
+          : 'Could not generate AI summary.'
       );
     } finally {
       setIsSynthesizing(false);
@@ -274,22 +324,27 @@ export default function App() {
 
   const metricsSummary =
     region.productType === 'GUNW'
-      ? `LOS ${formatSigned(activePass.losDisplacementCm ?? 0, 1)} cm, γ ${(activePass.coherence ?? 0).toFixed(2)}, Rain ${activePass.rainfallMm.toFixed(1)} mm/d`
-      : `HH ${activePass.hhGamma0Db.toFixed(1)} dB, HV ${activePass.hvGamma0Db.toFixed(1)} dB, Rain ${activePass.rainfallMm.toFixed(1)} mm/d`;
+      ? `Shift ${formatSigned(activePass.losDisplacementCm ?? 0, 1)} cm, Trust ${(activePass.coherence ?? 0).toFixed(2)}, Rain ${activePass.rainfallMm.toFixed(1)} mm/d`
+      : `Water ${activePass.hhGamma0Db.toFixed(1)} dB, Crops ${activePass.hvGamma0Db.toFixed(1)} dB, Rain ${activePass.rainfallMm.toFixed(1)} mm/d`;
+
+  const isDark = theme === 'dark';
 
   return (
-    <div className="relative min-h-screen flex flex-col bg-[#EBEBE8] text-[#18181B]">
-      {/* Fixed 12-Column Structural Background Grid (0.10 opacity #18181B, max-w-1600px) */}
+    <div className="relative min-h-screen flex flex-col bg-[var(--rr-bg)] text-[var(--rr-text)] transition-colors duration-200">
+      {/* Subtle 12-Column Structural Background Grid */}
       <div
         aria-hidden="true"
         className="pointer-events-none fixed inset-0 z-0 mx-auto max-w-[1600px] grid grid-cols-12"
       >
         {Array.from({ length: 12 }).map((_, i) => (
-          <div key={i} className="border-r border-[#18181B]/10 first:border-l" />
+          <div
+            key={i}
+            className="border-r border-[var(--rr-grid-line)] first:border-l"
+          />
         ))}
       </div>
 
-      {/* Global 4% Fractal Noise Texture Overlay */}
+      {/* Subtle Analog Texture Overlay */}
       <div
         aria-hidden="true"
         className="industrial-noise-overlay pointer-events-none fixed inset-0 z-[1500]"
@@ -306,11 +361,10 @@ export default function App() {
         onSelectRegion={selectRegionAndEnterMap}
         demoMode={demoMode}
         onToggleDemoMode={() => setDemoMode((prev) => !prev)}
-        language={language}
-        onSelectLanguage={(lang) => {
-          setLanguage(lang);
-          setSynthesis(null);
-        }}
+        theme={theme}
+        onToggleTheme={() =>
+          setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))
+        }
         onOpenAbout={() => setIsAboutOpen(true)}
       />
 
@@ -331,6 +385,10 @@ export default function App() {
               setPageView('HOME_3D_GLOBE');
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
+            onRefreshAll={() => void handleRefreshAll()}
+            isRefreshing={isRefreshing}
+            lastRefreshedAt={lastRefreshedAt}
+            isDark={isDark}
             activeAspect={activeAspect}
             onToggleAspect={handleToggleAspect}
             selectedZone={selectedZone}
@@ -354,11 +412,6 @@ export default function App() {
             isLoadingPower={isLoadingPower}
             powerError={powerError}
             onRetryPower={() => void loadRegionalData()}
-            language={language}
-            onSelectLanguage={(lang) => {
-              setLanguage(lang);
-              setSynthesis(null);
-            }}
             synthesis={synthesis}
             isSynthesizing={isSynthesizing}
             synthesisError={synthesisError}
@@ -382,11 +435,6 @@ export default function App() {
         passDate={activePass?.acquisitionDate}
         layerMode={layerMode}
         metricsSummary={metricsSummary}
-        language={language}
-        onSelectLanguage={(lang) => {
-          setLanguage(lang);
-          setSynthesis(null);
-        }}
       />
 
       <Suspense fallback={null}>
