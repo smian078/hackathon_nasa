@@ -1,0 +1,136 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-display: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: #100E14;
+    color: #F8FAFC;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, .font-display {
+    font-family: var(--font-display);
+    text-wrap: balance;
+  }
+
+  .font-mono, .tabular-nums {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.aura-glass {
+  background: rgba(22, 19, 28, 0.78);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(192, 76, 253, 0.22);
+}
+
+.aura-glass-subtle {
+  background: rgba(22, 19, 28, 0.58);
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 25%,
+    rgba(192, 76, 253, 0.12) 50%,
+    rgba(255, 255, 255, 0.04) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer {
+    animation: none;
+  }
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* Leaflet dark radar integration */
+.leaflet-container {
+  background: #0B090F !important;
+  font-family: var(--font-sans) !important;
+}
+
+.nisar-dark-basemap-tiles {
+  filter: invert(94%) hue-rotate(180deg) brightness(0.86) contrast(1.12) saturate(0.45);
+}
+
+.leaflet-control-attribution {
+  background: rgba(16, 14, 20, 0.85) !important;
+  color: #94A3B8 !important;
+  font-size: 10px !important;
+  border-top-left-radius: 6px;
+}
+
+.leaflet-control-attribution a {
+  color: #00F0FF !important;
+}
+
+.leaflet-control-zoom a {
+  background: rgba(22, 19, 28, 0.9) !important;
+  color: #F8FAFC !important;
+  border-color: rgba(192, 76, 253, 0.25) !important;
+}
+
+.leaflet-control-zoom a:hover {
+  background: rgba(192, 76, 253, 0.25) !important;
+}
+
+/* Custom range slider for orbital scrubber & coherence threshold */
+input[type='range'].nisar-range {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type='range'].nisar-range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: rgba(148, 163, 184, 0.24);
+}
+
+input[type='range'].nisar-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 16px;
+  width: 16px;
+  border-radius: 9999px;
+  background: #00F0FF;
+  border: 2px solid #100E14;
+  margin-top: -5px;
+  box-shadow: 0 0 0 2px rgba(0, 240, 255, 0.35);
+}
+
+input[type='range'].nisar-range:focus-visible {
+  outline: none;
+}
+
+input[type='range'].nisar-range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px #00F0FF;
+}
