@@ -1,12 +1,9 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
-import { Activity, Cpu, Database } from 'lucide-react';
-import { CloudPiercerMap } from './components/CloudPiercerMap.tsx';
 import { Footer } from './components/Footer.tsx';
-import { GranuleInspector } from './components/GranuleInspector.tsx';
+import { HomeLandingView } from './components/HomeLandingView.tsx';
 import { Navbar } from './components/Navbar.tsx';
-import { OrbitalTimeScrubber } from './components/OrbitalTimeScrubber.tsx';
-import { PhysicalDriverSynthesizer } from './components/PhysicalDriverSynthesizer.tsx';
-import { TelemetryPanel } from './components/TelemetryPanel.tsx';
+import { PageAwareAssistant } from './components/PageAwareAssistant.tsx';
+import { RegionExplorerView } from './components/RegionExplorerView.tsx';
 import { REGION_DATASETS } from './data/samples/asfVertexSamples.ts';
 import {
   fetchAsfGranules,
@@ -19,15 +16,21 @@ import {
 } from './services/nisarApi.ts';
 import type {
   AsfGranulesApiResponse,
+  DatasetAspectId,
   EonetEvent,
   LanguageCode,
   LayerMode,
   NasaPowerApiResponse,
+  PageViewMode,
   PhysicalDriverSynthesis,
   RegionId,
   SavedSnapshot,
 } from './types/sar.ts';
-import { computePassDelta } from './utils/sarPhysics.ts';
+import {
+  getDatasetAspectsForRegion,
+  getDefaultAspectForRegion,
+} from './utils/globeMath.ts';
+import { computePassDelta, formatSigned } from './utils/sarPhysics.ts';
 
 const AboutDataModal = lazy(() =>
   import('./components/AboutDataModal.tsx').then((m) => ({
@@ -35,42 +38,39 @@ const AboutDataModal = lazy(() =>
   }))
 );
 
-type DockTab = 'telemetry' | 'synthesizer' | 'granules';
-
 export default function App() {
+  const [pageView, setPageView] = useState<PageViewMode>('HOME_3D_GLOBE');
+  const [isTransitioning, setIsTransitioning] = useState<boolean>(false);
   const [activeRegionId, setActiveRegionId] =
     useState<RegionId>('maharashtra_gcov');
+  const [activeAspect, setActiveAspect] = useState<DatasetAspectId | null>(
+    'flood_water'
+  );
   const [layerMode, setLayerMode] = useState<LayerMode>('GCOV_HH');
   const [passIndex, setPassIndex] = useState<number>(2);
   const [selectedZoneId, setSelectedZoneId] = useState<string>('mh_gosikhurd');
   const [demoMode, setDemoMode] = useState<boolean>(true);
   const [language, setLanguage] = useState<LanguageCode>('en');
-  const [activeDockTab, setActiveDockTab] = useState<DockTab>('telemetry');
   const [splitPercent, setSplitPercent] = useState<number>(42);
   const [coherenceThreshold, setCoherenceThreshold] = useState<number>(0.35);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [isAboutOpen, setIsAboutOpen] = useState<boolean>(false);
 
-  // Saved snapshots in localStorage
   const [savedSnapshots, setSavedSnapshots] = useState<SavedSnapshot[]>(() =>
     loadSavedSnapshots()
   );
 
-  // NASA POWER state
   const [powerData, setPowerData] = useState<NasaPowerApiResponse | null>(null);
   const [isLoadingPower, setIsLoadingPower] = useState<boolean>(false);
   const [powerError, setPowerError] = useState<string | null>(null);
 
-  // ASF Granules state
   const [granulesData, setGranulesData] =
     useState<AsfGranulesApiResponse | null>(null);
   const [isLoadingGranules, setIsLoadingGranules] = useState<boolean>(false);
   const [granulesError, setGranulesError] = useState<string | null>(null);
 
-  // EONET events
   const [eonetEvents, setEonetEvents] = useState<EonetEvent[]>([]);
 
-  // Gemini synthesis state
   const [synthesis, setSynthesis] = useState<PhysicalDriverSynthesis | null>(
     null
   );
@@ -80,6 +80,8 @@ export default function App() {
   const region = REGION_DATASETS[activeRegionId];
   const selectedZone =
     region.zones.find((z) => z.id === selectedZoneId) ?? region.zones[0] ?? null;
+  const activePass =
+    selectedZone?.passes[passIndex] ?? region.zones[0].passes[passIndex];
 
   const loadRegionalData = useCallback(async () => {
     const currentRegion = REGION_DATASETS[activeRegionId];
@@ -145,7 +147,6 @@ export default function App() {
     void loadRegionalData();
   }, [loadRegionalData]);
 
-  // Orbital pass autoplay loop (automatically respects prefers-reduced-motion)
   useEffect(() => {
     if (!isPlaying) return;
     if (
@@ -163,13 +164,35 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [isPlaying]);
 
-  const handleSelectRegion = (id: RegionId) => {
-    setActiveRegionId(id);
+  const selectRegionAndEnterMap = useCallback((id: RegionId) => {
     const nextRegion = REGION_DATASETS[id];
+    setActiveRegionId(id);
     setSelectedZoneId(nextRegion.zones[0].id);
     setLayerMode(nextRegion.productType === 'GUNW' ? 'GUNW_LOS' : 'GCOV_HH');
+    setActiveAspect(getDefaultAspectForRegion(id));
     setSynthesis(null);
     setSynthesisError(null);
+    setIsTransitioning(true);
+
+    window.setTimeout(() => {
+      setPageView('REGION_2D_MAP');
+      setIsTransitioning(false);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 180);
+  }, []);
+
+  const handleToggleAspect = (aspectId: DatasetAspectId) => {
+    if (activeAspect === aspectId) {
+      setActiveAspect(null);
+      return;
+    }
+    setActiveAspect(aspectId);
+    const meta = getDatasetAspectsForRegion(activeRegionId).find(
+      (a) => a.id === aspectId
+    );
+    if (meta?.recommendedLayerMode) {
+      setLayerMode(meta.recommendedLayerMode);
+    }
   };
 
   const handleSelectZone = (zoneId: string) => {
@@ -240,6 +263,8 @@ export default function App() {
     setSelectedZoneId(snap.zoneId);
     setPassIndex(snap.passIndex);
     setLayerMode(snap.layerMode);
+    setActiveAspect(getDefaultAspectForRegion(snap.regionId));
+    setPageView('REGION_2D_MAP');
     setSynthesis(null);
   };
 
@@ -247,11 +272,38 @@ export default function App() {
     setSavedSnapshots(removeSavedSnapshot(id));
   };
 
+  const metricsSummary =
+    region.productType === 'GUNW'
+      ? `LOS ${formatSigned(activePass.losDisplacementCm ?? 0, 1)} cm, γ ${(activePass.coherence ?? 0).toFixed(2)}, Rain ${activePass.rainfallMm.toFixed(1)} mm/d`
+      : `HH ${activePass.hhGamma0Db.toFixed(1)} dB, HV ${activePass.hvGamma0Db.toFixed(1)} dB, Rain ${activePass.rainfallMm.toFixed(1)} mm/d`;
+
   return (
-    <div className="min-h-screen flex flex-col bg-[#100E14] text-[#F8FAFC]">
+    <div className="relative min-h-screen flex flex-col bg-[#EBEBE8] text-[#18181B]">
+      {/* Fixed 12-Column Structural Background Grid (0.10 opacity #18181B, max-w-1600px) */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 z-0 mx-auto max-w-[1600px] grid grid-cols-12"
+      >
+        {Array.from({ length: 12 }).map((_, i) => (
+          <div key={i} className="border-r border-[#18181B]/10 first:border-l" />
+        ))}
+      </div>
+
+      {/* Global 4% Fractal Noise Texture Overlay */}
+      <div
+        aria-hidden="true"
+        className="industrial-noise-overlay pointer-events-none fixed inset-0 z-[1500]"
+      />
+
       <Navbar
+        pageView={pageView}
+        onNavigateHome={() => {
+          setPageView('HOME_3D_GLOBE');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onEnterExplorer={() => selectRegionAndEnterMap(activeRegionId)}
         activeRegionId={activeRegionId}
-        onSelectRegion={handleSelectRegion}
+        onSelectRegion={selectRegionAndEnterMap}
         demoMode={demoMode}
         onToggleDemoMode={() => setDemoMode((prev) => !prev)}
         language={language}
@@ -262,163 +314,80 @@ export default function App() {
         onOpenAbout={() => setIsAboutOpen(true)}
       />
 
-      <main className="mx-auto w-full max-w-[1440px] flex-1 p-4 space-y-4">
-        {/* Region Header Banner */}
-        <section
-          aria-label="Active study area summary"
-          className="flex flex-wrap items-center justify-between gap-3 px-1"
-        >
-          <div className="min-w-0">
-            <h2 className="font-display text-lg sm:text-xl font-bold text-[#F8FAFC]">
-              {region.title}
-            </h2>
-            <p className="text-xs sm:text-sm text-[#94A3B8] mt-0.5">
-              {region.subtitle}
-            </p>
-          </div>
-          <div className="font-mono text-xs text-[#94A3B8] tabular-nums shrink-0">
-            BBox: [{region.bbox.map((v) => v.toFixed(2)).join(', ')}] · Product: {region.productType}
-          </div>
-        </section>
-
-        {/* 12-Column Command Console Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-          {/* Left / Center Stage (7 Columns on Desktop) */}
-          <div className="lg:col-span-7 space-y-4">
-            <CloudPiercerMap
-              region={region}
-              selectedZone={selectedZone}
-              onSelectZone={handleSelectZone}
-              layerMode={layerMode}
-              onSelectLayerMode={setLayerMode}
-              passIndex={passIndex}
-              coherenceThreshold={coherenceThreshold}
-              onChangeCoherenceThreshold={setCoherenceThreshold}
-              demoMode={demoMode}
-              splitPercent={splitPercent}
-              onChangeSplitPercent={setSplitPercent}
-            />
-
-            <OrbitalTimeScrubber
-              region={region}
-              selectedZone={selectedZone}
-              passIndex={passIndex}
-              onSelectPass={setPassIndex}
-              isPlaying={isPlaying}
-              onTogglePlay={() => setIsPlaying((prev) => !prev)}
-              onPinSnapshot={handlePinSnapshot}
-              savedSnapshots={savedSnapshots}
-              onLoadSnapshot={handleLoadSnapshot}
-              onDeleteSnapshot={handleDeleteSnapshot}
-            />
-          </div>
-
-          {/* Right Intelligence Dock (5 Columns on Desktop) */}
-          <aside
-            aria-label="Telemetry, Physical Driver Synthesis, and Granule Inspector"
-            className="lg:col-span-5 aura-glass rounded-2xl overflow-hidden"
-          >
-            {/* Dock Tab Bar */}
-            <div
-              role="tablist"
-              aria-label="Intelligence dock views"
-              className="grid grid-cols-3 border-b border-white/10 bg-[#16131C]/95 p-1.5 gap-1"
-            >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeDockTab === 'telemetry'}
-                onClick={() => setActiveDockTab('telemetry')}
-                className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] ${
-                  activeDockTab === 'telemetry'
-                    ? 'bg-[#C04CFD]/25 text-[#F8FAFC] border border-[#C04CFD]/50'
-                    : 'text-[#94A3B8] hover:text-[#F8FAFC] border border-transparent'
-                }`}
-              >
-                <Activity className="h-3.5 w-3.5 text-[#00F0FF]" aria-hidden="true" />
-                <span>Telemetry</span>
-              </button>
-
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeDockTab === 'synthesizer'}
-                onClick={() => setActiveDockTab('synthesizer')}
-                className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] ${
-                  activeDockTab === 'synthesizer'
-                    ? 'bg-[#C04CFD]/25 text-[#F8FAFC] border border-[#C04CFD]/50'
-                    : 'text-[#94A3B8] hover:text-[#F8FAFC] border border-transparent'
-                }`}
-              >
-                <Cpu className="h-3.5 w-3.5 text-[#C04CFD]" aria-hidden="true" />
-                <span>Driver AI</span>
-              </button>
-
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeDockTab === 'granules'}
-                onClick={() => setActiveDockTab('granules')}
-                className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-2.5 py-2 text-xs font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] ${
-                  activeDockTab === 'granules'
-                    ? 'bg-[#C04CFD]/25 text-[#F8FAFC] border border-[#C04CFD]/50'
-                    : 'text-[#94A3B8] hover:text-[#F8FAFC] border border-transparent'
-                }`}
-              >
-                <Database className="h-3.5 w-3.5 text-[#D4F844]" aria-hidden="true" />
-                <span>ASF Granules</span>
-              </button>
-            </div>
-
-            {/* Active Tab Panel Content */}
-            <div className="p-4" role="tabpanel">
-              {activeDockTab === 'telemetry' && (
-                <TelemetryPanel
-                  region={region}
-                  selectedZone={selectedZone}
-                  onSelectZone={handleSelectZone}
-                  passIndex={passIndex}
-                  powerData={powerData}
-                  isLoadingPower={isLoadingPower}
-                  powerError={powerError}
-                  onRetryPower={() => void loadRegionalData()}
-                />
-              )}
-
-              {activeDockTab === 'synthesizer' && (
-                <PhysicalDriverSynthesizer
-                  region={region}
-                  selectedZone={selectedZone}
-                  passIndex={passIndex}
-                  language={language}
-                  onSelectLanguage={(lang) => {
-                    setLanguage(lang);
-                    setSynthesis(null);
-                  }}
-                  synthesis={synthesis}
-                  isSynthesizing={isSynthesizing}
-                  synthesisError={synthesisError}
-                  onSynthesize={() => void handleSynthesize()}
-                />
-              )}
-
-              {activeDockTab === 'granules' && (
-                <GranuleInspector
-                  region={region}
-                  granulesData={granulesData}
-                  isLoadingGranules={isLoadingGranules}
-                  granulesError={granulesError}
-                  onRetryGranules={() => void loadRegionalData()}
-                  eonetEvents={eonetEvents}
-                  demoMode={demoMode}
-                />
-              )}
-            </div>
-          </aside>
-        </div>
+      <main className="relative z-10 flex-1">
+        {pageView === 'HOME_3D_GLOBE' ? (
+          <HomeLandingView
+            activeRegionId={activeRegionId}
+            onSelectRegionFromGlobe={selectRegionAndEnterMap}
+            isTransitioning={isTransitioning}
+            onOpenAbout={() => setIsAboutOpen(true)}
+          />
+        ) : (
+          <RegionExplorerView
+            region={region}
+            activeRegionId={activeRegionId}
+            onSelectRegion={selectRegionAndEnterMap}
+            onReturnToGlobe={() => {
+              setPageView('HOME_3D_GLOBE');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            activeAspect={activeAspect}
+            onToggleAspect={handleToggleAspect}
+            selectedZone={selectedZone}
+            onSelectZone={handleSelectZone}
+            layerMode={layerMode}
+            onSelectLayerMode={setLayerMode}
+            passIndex={passIndex}
+            onSelectPass={setPassIndex}
+            coherenceThreshold={coherenceThreshold}
+            onChangeCoherenceThreshold={setCoherenceThreshold}
+            demoMode={demoMode}
+            splitPercent={splitPercent}
+            onChangeSplitPercent={setSplitPercent}
+            isPlaying={isPlaying}
+            onTogglePlay={() => setIsPlaying((prev) => !prev)}
+            onPinSnapshot={handlePinSnapshot}
+            savedSnapshots={savedSnapshots}
+            onLoadSnapshot={handleLoadSnapshot}
+            onDeleteSnapshot={handleDeleteSnapshot}
+            powerData={powerData}
+            isLoadingPower={isLoadingPower}
+            powerError={powerError}
+            onRetryPower={() => void loadRegionalData()}
+            language={language}
+            onSelectLanguage={(lang) => {
+              setLanguage(lang);
+              setSynthesis(null);
+            }}
+            synthesis={synthesis}
+            isSynthesizing={isSynthesizing}
+            synthesisError={synthesisError}
+            onSynthesize={() => void handleSynthesize()}
+            granulesData={granulesData}
+            isLoadingGranules={isLoadingGranules}
+            granulesError={granulesError}
+            onRetryGranules={() => void loadRegionalData()}
+            eonetEvents={eonetEvents}
+          />
+        )}
       </main>
 
       <Footer onOpenAbout={() => setIsAboutOpen(true)} />
+
+      <PageAwareAssistant
+        pageView={pageView}
+        activeRegionId={activeRegionId}
+        activeAspect={activeAspect}
+        zoneName={selectedZone?.name}
+        passDate={activePass?.acquisitionDate}
+        layerMode={layerMode}
+        metricsSummary={metricsSummary}
+        language={language}
+        onSelectLanguage={(lang) => {
+          setLanguage(lang);
+          setSynthesis(null);
+        }}
+      />
 
       <Suspense fallback={null}>
         <AboutDataModal

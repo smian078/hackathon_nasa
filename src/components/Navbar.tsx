@@ -1,8 +1,11 @@
-import { BookOpen, Globe2, Radio, Satellite } from 'lucide-react';
-import { REGION_LIST } from '../data/samples/asfVertexSamples.ts';
-import type { LanguageCode, RegionId } from '../types/sar.ts';
+import { ArrowUpRight, Globe, Radio, Wifi, WifiOff } from 'lucide-react';
+import type { LanguageCode, PageViewMode, RegionId } from '../types/sar.ts';
+import { REGION_DATASETS } from '../data/samples/asfVertexSamples.ts';
 
 interface NavbarProps {
+  pageView: PageViewMode;
+  onNavigateHome: () => void;
+  onEnterExplorer: () => void;
   activeRegionId: RegionId;
   onSelectRegion: (id: RegionId) => void;
   demoMode: boolean;
@@ -12,13 +15,16 @@ interface NavbarProps {
   onOpenAbout: () => void;
 }
 
-const LANGUAGES: Array<{ code: LanguageCode; label: string }> = [
-  { code: 'en', label: 'EN' },
-  { code: 'mr', label: 'मराठी' },
-  { code: 'hi', label: 'हिन्दी' },
+const REGION_LINKS: Array<{ id: RegionId; label: string }> = [
+  { id: 'maharashtra_gcov', label: 'Maharashtra' },
+  { id: 'northeast_india_gcov', label: 'NE India' },
+  { id: 'japan_gunw', label: 'Japan' },
 ];
 
 export function Navbar({
+  pageView,
+  onNavigateHome,
+  onEnterExplorer,
   activeRegionId,
   onSelectRegion,
   demoMode,
@@ -28,96 +34,47 @@ export function Navbar({
   onOpenAbout,
 }: NavbarProps) {
   return (
-    <header className="aura-glass border-b border-[#C04CFD]/25 px-4 py-3">
-      <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-3">
-        {/* Brand Zone */}
-        <div className="flex items-center gap-3 shrink-0">
-          <div
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#C04CFD]/15 border border-[#C04CFD]/40 text-[#00F0FF]"
-            aria-hidden="true"
-          >
-            <Satellite className="h-5 w-5" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="font-display text-lg font-bold tracking-tight text-[#F8FAFC] whitespace-nowrap leading-tight">
-              NISAR Pulse
-            </h1>
-            <p className="hidden sm:block text-xs text-[#94A3B8] whitespace-nowrap">
-              L-Band GCOV &amp; GUNW Surface Change Explorer
-            </p>
-          </div>
-        </div>
-
-        {/* Region Quick-Tabs */}
+    <header className="sticky top-0 z-[1050] h-20 w-full border-b border-[#D4D4D8] bg-[#EBEBE8]/85 backdrop-blur-[10px]">
+      <div className="mx-auto flex h-full max-w-[1600px] items-center justify-between gap-2 px-4 sm:px-8 relative">
+        {/* Left Navigation Links (Tiny Caps 10px Tracked) */}
         <nav
-          aria-label="Study area selector"
-          className="flex items-center gap-1 rounded-xl bg-[#100E14]/80 p-1 border border-white/10 overflow-x-auto max-w-full"
+          aria-label="Primary navigation"
+          className="flex items-center gap-3 sm:gap-5 min-w-0"
         >
-          {REGION_LIST.map((region) => {
-            const isActive = region.id === activeRegionId;
-            return (
-              <button
-                key={region.id}
-                type="button"
-                onClick={() => onSelectRegion(region.id)}
-                aria-pressed={isActive}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap shrink-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] ${
-                  isActive
-                    ? 'bg-[#C04CFD]/25 text-[#F8FAFC] border border-[#C04CFD]/60'
-                    : 'text-[#94A3B8] hover:text-[#F8FAFC] hover:bg-white/5 border border-transparent'
-                }`}
-              >
-                {region.shortName}
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* Controls Cluster */}
-        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-between lg:justify-end">
           <button
             type="button"
-            onClick={onToggleDemoMode}
-            aria-pressed={demoMode}
-            aria-label={
-              demoMode
-                ? 'Demo Mode active using bundled ASF Vertex samples. Click to switch to Live NASA and ASF APIs.'
-                : 'Live API mode active. Click to switch to bundled ASF Vertex Demo Mode.'
-            }
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap shrink-0 border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] ${
-              demoMode
-                ? 'bg-[#D4F844]/12 text-[#D4F844] border-[#D4F844]/40 hover:bg-[#D4F844]/20'
-                : 'bg-[#00F0FF]/12 text-[#00F0FF] border-[#00F0FF]/45 hover:bg-[#00F0FF]/20'
+            onClick={onNavigateHome}
+            aria-current={pageView === 'HOME_3D_GLOBE' ? 'page' : undefined}
+            className={`inline-flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.2em] whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0066FF] ${
+              pageView === 'HOME_3D_GLOBE'
+                ? 'text-[#0066FF]'
+                : 'text-[#18181B] hover:text-[#0066FF]'
             }`}
           >
-            <Radio className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>{demoMode ? 'Demo Mode: Bundled ASF' : 'Live NASA / ASF Fetch'}</span>
+            <Globe className="h-4 w-4 sm:h-3.5 sm:w-3.5" aria-hidden="true" />
+            <span className="hidden sm:inline">3D Earth</span>
           </button>
 
           <div
+            className="hidden md:flex items-center gap-3 border-l border-[#D4D4D8] pl-4"
             role="group"
-            aria-label="Analysis language selector"
-            className="flex items-center rounded-lg bg-[#100E14]/80 p-0.5 border border-white/10"
+            aria-label="Quick study region navigation"
           >
-            <Globe2
-              className="h-3.5 w-3.5 text-[#94A3B8] ml-2 mr-1 hidden sm:block"
-              aria-hidden="true"
-            />
-            {LANGUAGES.map((lang) => {
-              const active = language === lang.code;
+            {REGION_LINKS.map((item) => {
+              const active =
+                pageView === 'REGION_2D_MAP' && activeRegionId === item.id;
               return (
                 <button
-                  key={lang.code}
+                  key={item.id}
                   type="button"
-                  onClick={() => onSelectLanguage(lang.code)}
-                  aria-pressed={active}
-                  className={`px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap shrink-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF] ${
+                  onClick={() => onSelectRegion(item.id)}
+                  className={`font-mono text-[10px] font-bold uppercase tracking-[0.2em] whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0066FF] ${
                     active
-                      ? 'bg-[#00F0FF]/20 text-[#00F0FF]'
-                      : 'text-[#94A3B8] hover:text-[#F8FAFC]'
+                      ? 'text-[#0066FF] underline underline-offset-4'
+                      : 'text-[#52525B] hover:text-[#18181B]'
                   }`}
                 >
-                  {lang.label}
+                  {item.label}
                 </button>
               );
             })}
@@ -126,10 +83,95 @@ export function Navbar({
           <button
             type="button"
             onClick={onOpenAbout}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-[#F8FAFC] bg-white/5 hover:bg-white/10 border border-white/15 whitespace-nowrap shrink-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00F0FF]"
+            className="hidden sm:inline-flex font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-[#52525B] hover:text-[#18181B] border-l border-[#D4D4D8] pl-3 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0066FF]"
           >
-            <BookOpen className="h-3.5 w-3.5 text-[#C04CFD]" aria-hidden="true" />
-            <span>About &amp; Data</span>
+            Sources
+          </button>
+        </nav>
+
+        {/* Absolute Centered Brand Mark (Serif Italic + Bold Sans) */}
+        <button
+          type="button"
+          onClick={onNavigateHome}
+          aria-label="Return to NISAR Pulse 3D Earth Home"
+          className="lg:absolute lg:left-1/2 lg:-translate-x-1/2 inline-flex items-baseline gap-1 text-[#18181B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0066FF] px-1 shrink-0"
+        >
+          <span className="font-serif-editorial text-lg sm:text-2xl leading-none">
+            Nisar
+          </span>
+          <span className="text-base sm:text-xl font-black uppercase tracking-[-0.04em] leading-none">
+            PULSE
+          </span>
+        </button>
+
+        {/* Right Controls: Mode + Language + Rounded-Full Header CTA */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={onToggleDemoMode}
+            aria-pressed={demoMode}
+            title="Toggle between bundled Cycle 035 ASF sample telemetry and live NASA/ASF proxy fetches"
+            className={`hidden sm:inline-flex items-center gap-1.5 border px-2.5 py-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.18em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0066FF] ${
+              demoMode
+                ? 'border-[#D4D4D8] bg-[#F4F4F5] text-[#18181B]'
+                : 'border-[#0066FF] bg-[#0066FF]/10 text-[#0066FF]'
+            }`}
+          >
+            {demoMode ? (
+              <WifiOff className="h-3 w-3 text-[#52525B]" aria-hidden="true" />
+            ) : (
+              <Wifi className="h-3 w-3 text-[#0066FF]" aria-hidden="true" />
+            )}
+            <span>{demoMode ? 'Sample' : 'Live'}</span>
+          </button>
+
+          {/* Language Selector */}
+          <div
+            role="group"
+            aria-label="Synthesis and assistant language"
+            className="hidden xl:flex items-center border border-[#D4D4D8] bg-[#F4F4F5]"
+          >
+            {(
+              [
+                { code: 'en', label: 'EN' },
+                { code: 'mr', label: 'MR' },
+                { code: 'hi', label: 'HI' },
+              ] as const
+            ).map((item) => (
+              <button
+                key={item.code}
+                type="button"
+                onClick={() => onSelectLanguage(item.code)}
+                aria-pressed={language === item.code}
+                className={`px-2 py-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.16em] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0066FF] ${
+                  language === item.code
+                    ? 'bg-[#18181B] text-[#EBEBE8]'
+                    : 'text-[#52525B] hover:text-[#18181B]'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Rounded-Full Header CTA Pill (Strict Spec Exception) */}
+          <button
+            type="button"
+            onClick={pageView === 'HOME_3D_GLOBE' ? onEnterExplorer : onNavigateHome}
+            className="inline-flex items-center gap-1.5 rounded-full border border-[#18181B] bg-[#EBEBE8] px-3.5 sm:px-4 py-2 font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-[#18181B] hover:bg-[#0066FF] hover:border-[#0066FF] hover:text-white transition-colors duration-300 industrial-ease whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0066FF]"
+          >
+            {pageView === 'HOME_3D_GLOBE' ? (
+              <>
+                <Radio className="h-3 w-3 text-[#0066FF] group-hover:text-white" aria-hidden="true" />
+                <span>2D Map ({REGION_DATASETS[activeRegionId].productType})</span>
+                <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
+              </>
+            ) : (
+              <>
+                <Globe className="h-3 w-3" aria-hidden="true" />
+                <span>3D Earth Home</span>
+              </>
+            )}
           </button>
         </div>
       </div>

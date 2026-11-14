@@ -191,3 +191,52 @@ export interface NasaPowerApiResponse {
   series: PowerDailyPoint[];
   cached: boolean;
 }
+
+export type PageViewMode = 'HOME_3D_GLOBE' | 'REGION_2D_MAP';
+
+export type DatasetAspectId =
+  | 'flood_water'
+  | 'crop_canopy'
+  | 'crustal_los'
+  | 'coherence_mask'
+  | 'climate_power'
+  | 'physics_ai'
+  | 'sources_hdf5';
+
+export interface DatasetAspectOption {
+  id: DatasetAspectId;
+  code: string;
+  title: string;
+  shortTag: string;
+  summary: string;
+  recommendedLayerMode?: LayerMode;
+}
+
+export interface AssistChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  text: string;
+  source?: 'GEMINI_4_HYDROGEN' | 'DETERMINISTIC_PHYSICS_FALLBACK';
+  timestamp: string;
+}
+
+export interface PageAwareAssistRequest {
+  currentView: PageViewMode;
+  regionId?: RegionId;
+  activeAspect?: DatasetAspectId;
+  zoneName?: string;
+  passDate?: string;
+  layerMode?: LayerMode;
+  metricsSummary?: string;
+  question: string;
+  language: LanguageCode;
+}
+
+export interface PageAwareAssistResponse {
+  answer: string;
+  suggestedFollowUps: string[];
+  contextLabel: string;
+  source: 'GEMINI_4_HYDROGEN' | 'DETERMINISTIC_PHYSICS_FALLBACK';
+  generatedAt: string;
+}
+

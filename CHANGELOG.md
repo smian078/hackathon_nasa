@@ -23,3 +23,17 @@
 ### Changed
 - Increased `/api/gemini/synthesize` model timeout to `12000` ms with `gemini-2.5-flash` fallback prior to `DETERMINISTIC_PHYSICS_FALLBACK` in `server/routes.ts`.
 - Replaced `__dirname` with `import.meta.dirname` in `vite.config.ts`.
+
+## [0.2.0] - 2026-11-14 — Warm Industrial 3D Earth Home, 2D Morph Explorer & Page-Aware Assistant
+### Added
+- **Interactive 3D Earth Home (`src/components/EarthGlobeCanvas.tsx`, `src/components/HomeLandingView.tsx`)**: Procedural Three.js 3D globe with highlighted selectable region beacons for Maharashtra, Northeast India, and Japan, orbiting NISAR SweepSAR spacecraft model, software-WebGL pacing, and smooth camera fly-to transition into the 2D Leaflet workspace.
+- **Right-Side Toggleable Dataset Aspects (`src/components/RegionExplorerView.tsx`, `src/utils/globeMath.ts`)**: Accordion aspect toggles tailored per study region (`Flood HH`, `Crop Canopy HV/Ratio`, `Crustal LOS GUNW`, `Coherence γ`, `NASA POWER Climate`, `Physical Driver AI Synthesis`, and `Cycle 035 HDF5 & Data Sources`), updating 2D map layers and detailed breakdowns one by one.
+- **Bottom-Right Page-Aware AI Assistant (`src/components/PageAwareAssistant.tsx`, `/api/gemini/assist`)**: Floating context-synced guide tracking active page (`HOME_3D_GLOBE` vs `REGION_2D_MAP`), active region, aspect module, selected sub-zone, and live telemetry values in English, Marathi, and Hindi.
+- **Unit Tests (`src/utils/globeMath.test.ts`)**: Verified 3D spherical-to-Cartesian projection, orbital camera target calculation, aspect configurations, and page-aware assistant fallback responses via `node:test`.
+
+### Changed
+- Redesigned UI into the **Warm Industrial** aesthetic (`#EBEBE8` background, `#18181B` foreground, `#0066FF` blue accent, `#D4D4D8` 1px borders, fixed 12-column grid lines, 4% noise overlay, `Inter` + `Playfair Display` + `JetBrains Mono` typography, `120px` marquee ticker, clip-path hover project list, and `#18181B` massive footer).
+
+### Fixed
+- Refined procedural 3D Earth continent polygons in `src/components/EarthGlobeCanvas.tsx` to eliminate concave self-intersections and render clean South Asia/Japan coastlines.
+- Improved `390px` mobile header spacing in `src/components/Navbar.tsx`, preserved lowercase Greek `γ⁰`/`γ` symbols in telemetry HUD labels, map layer buttons, and the coherence mask slider label, and tuned `/api/gemini/assist` timeout to `5500ms`.

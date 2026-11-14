@@ -4,8 +4,12 @@ import { GoogleGenAI, ThinkingLevel, Type } from '@google/genai';
 import { REGION_DATASETS } from '../src/data/samples/asfVertexSamples.ts';
 import type {
   AsfGranuleMetadata,
+  DatasetAspectId,
   EonetEvent,
   LanguageCode,
+  PageAwareAssistRequest,
+  PageAwareAssistResponse,
+  PageViewMode,
   PhysicalDriverSynthesis,
   PowerDailyPoint,
   ProductType,
@@ -14,6 +18,10 @@ import type {
   SynthesizeRequestPayload,
 } from '../src/types/sar.ts';
 import { buildDeterministicSynthesis } from '../src/utils/sarPhysics.ts';
+import {
+  buildPageAwareAssistantFallback,
+  formatPageContextLabel,
+} from '../src/utils/globeMath.ts';
 import { IpRateLimiter, TtlSwrCache } from './cache.ts';
 
 const apiCache = new TtlSwrCache();
@@ -663,6 +671,137 @@ Provide 3 concise, specific items in actionableAdvisory citing the exact dB, cm,
       const fallback = buildDeterministicSynthesis(payload);
       apiCache.set(cacheKey, fallback, 600, 300);
       res.json({ ...fallback, cached: false });
+    }
+  });
+
+  // 6. Page-Aware Bottom-Right Assistant Route
+  router.post('/gemini/assist', async (req: Request, res: Response) => {
+    const body = req.body as Partial<PageAwareAssistRequest> | undefined;
+    if (!body || typeof body !== 'object' || typeof body.question !== 'string' || !body.question.trim()) {
+      res.status(400).json({ error: 'Missing required question string.' });
+      return;
+    }
+
+    const currentView: PageViewMode =
+      body.currentView === 'REGION_2D_MAP' ? 'REGION_2D_MAP' : 'HOME_3D_GLOBE';
+    const regionId =
+      typeof body.regionId === 'string' && body.regionId in REGION_DATASETS
+        ? (body.regionId as RegionId)
+        : undefined;
+    const language: LanguageCode =
+      typeof body.language === 'string' && VALID_LANGUAGES.has(body.language as LanguageCode)
+        ? (body.language as LanguageCode)
+        : 'en';
+
+    const payload: PageAwareAssistRequest = {
+      currentView,
+      regionId,
+      activeAspect:
+        typeof body.activeAspect === 'string'
+          ? (body.activeAspect as DatasetAspectId)
+          : undefined,
+      zoneName: typeof body.zoneName === 'string' ? body.zoneName.trim() : undefined,
+      passDate: typeof body.passDate === 'string' ? body.passDate.trim() : undefined,
+      layerMode: typeof body.layerMode === 'string' ? body.layerMode : undefined,
+      metricsSummary:
+        typeof body.metricsSummary === 'string' ? body.metricsSummary.trim() : undefined,
+      question: body.question.trim().slice(0, 500),
+      language,
+    };
+
+    const cacheKey = `assist:${payload.currentView}:${payload.regionId ?? 'none'}:${payload.activeAspect ?? 'none'}:${payload.zoneName ?? 'none'}:${payload.language}:${payload.question.toLowerCase()}`;
+    const cached = apiCache.get<PageAwareAssistResponse>(cacheKey);
+    if (cached && !cached.isStale) {
+      res.json(cached.value);
+      return;
+    }
+
+    const ai = getGeminiClient();
+    if (!ai) {
+      const fallback = buildPageAwareAssistantFallback(payload);
+      apiCache.set(cacheKey, fallback, 900, 300);
+      res.json(fallback);
+      return;
+    }
+
+    const contextLabel = formatPageContextLabel(payload);
+    const languageName =
+      payload.language === 'mr'
+        ? 'Marathi (मराठी)'
+        : payload.language === 'hi'
+          ? 'Hindi (हिन्दी)'
+          : 'English';
+
+    const assistPrompt = `You are the NISAR Pulse Page-Aware Assistant. Respond concisely (2-4 sentences) in ${languageName}, strictly grounded to the user's active UI context and metrics. Never invent data.
+Active Page: ${payload.currentView}
+Context Label: ${contextLabel}
+${payload.passDate ? `Orbital Pass Date: ${payload.passDate}` : ''}
+${payload.layerMode ? `Active 2D Layer: ${payload.layerMode}` : ''}
+${payload.metricsSummary ? `Visible Telemetry: ${payload.metricsSummary}` : ''}
+User Question: ${payload.question}`;
+
+    const runAssistModel = async (modelName: string) => {
+      const promise = ai.models.generateContent({
+        model: modelName,
+        contents: assistPrompt,
+        config: {
+          systemInstruction:
+            'You guide users through NISAR Pulse (3D Earth globe home and 2D GCOV/GUNW regional explorer). Always orient the answer to the exact page/aspect/zone they are viewing.',
+          ...(modelName === 'gemini-4-hydrogen'
+            ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
+            : {}),
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              answer: { type: Type.STRING },
+              suggestedFollowUps: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+              },
+            },
+            required: ['answer', 'suggestedFollowUps'],
+          },
+        },
+      });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`${modelName} assist timed out`)), 5500)
+      );
+      return Promise.race([promise, timeoutPromise]);
+    };
+
+    try {
+      let response;
+      try {
+        response = await runAssistModel('gemini-4-hydrogen');
+      } catch {
+        response = await runAssistModel('gemini-2.5-flash');
+      }
+
+      const raw = (response.text ?? '').trim();
+      const parsed = JSON.parse(raw) as Partial<PageAwareAssistResponse>;
+      const fallback = buildPageAwareAssistantFallback(payload);
+
+      const assistResponse: PageAwareAssistResponse = {
+        answer:
+          typeof parsed.answer === 'string' && parsed.answer.trim()
+            ? parsed.answer.trim()
+            : fallback.answer,
+        suggestedFollowUps:
+          Array.isArray(parsed.suggestedFollowUps) && parsed.suggestedFollowUps.length > 0
+            ? parsed.suggestedFollowUps.slice(0, 3).map(String)
+            : fallback.suggestedFollowUps,
+        contextLabel,
+        source: 'GEMINI_4_HYDROGEN',
+        generatedAt: new Date().toISOString(),
+      };
+
+      apiCache.set(cacheKey, assistResponse, 1800, 300);
+      res.json(assistResponse);
+    } catch {
+      const fallback = buildPageAwareAssistantFallback(payload);
+      apiCache.set(cacheKey, fallback, 600, 300);
+      res.json(fallback);
     }
   });
 

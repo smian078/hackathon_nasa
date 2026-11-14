@@ -4,6 +4,8 @@ import type {
   EonetEvent,
   HealthStatusResponse,
   NasaPowerApiResponse,
+  PageAwareAssistRequest,
+  PageAwareAssistResponse,
   PhysicalDriverSynthesis,
   ProductType,
   RegionDataset,
@@ -12,6 +14,7 @@ import type {
   SynthesizeRequestPayload,
 } from '../types/sar.ts';
 import { buildDeterministicSynthesis } from '../utils/sarPhysics.ts';
+import { buildPageAwareAssistantFallback } from '../utils/globeMath.ts';
 
 const SNAPSHOTS_STORAGE_KEY = 'nisar_pulse_saved_snapshots_v1';
 
@@ -126,6 +129,29 @@ export async function synthesizePhysicalDrivers(
   } catch {
     clearTimeout(timer);
     return buildDeterministicSynthesis(payload);
+  }
+}
+
+export async function askPageAwareAssistant(
+  payload: PageAwareAssistRequest
+): Promise<PageAwareAssistResponse> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    const resp = await fetch('/api/gemini/assist', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!resp.ok) {
+      throw new Error(`Assistant endpoint returned HTTP ${resp.status}`);
+    }
+    return (await resp.json()) as PageAwareAssistResponse;
+  } catch {
+    clearTimeout(timer);
+    return buildPageAwareAssistantFallback(payload);
   }
 }
 
